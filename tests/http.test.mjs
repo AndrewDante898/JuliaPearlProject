@@ -1,0 +1,11 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {mkdtempSync,rmSync} from 'node:fs';import {tmpdir} from 'node:os';import {join} from 'node:path';import {createApp} from '../server.mjs';
+test('admin access, setup, session, CSRF and logout',async t=>{const dir=mkdtempSync(join(tmpdir(),'pearl-http-'));const app=createApp({dataDir:dir});await new Promise(r=>app.server.listen(0,'127.0.0.1',r));const base=`http://127.0.0.1:${app.server.address().port}`;t.after(async()=>{await new Promise(r=>app.server.close(r));app.store.close();rmSync(dir,{recursive:true,force:true});});
+const get=p=>fetch(base+p);const post=(p,body,cookie='',origin=base)=>fetch(base+p,{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,Cookie:cookie},body:JSON.stringify(body)});
+assert.equal((await get('/api/admin/products')).status,401);assert.equal((await post('/api/setup',{password:'a-long-demo-password',email:'owner@example.com'},'','https://evil.example')).status,403);
+const setup=await post('/api/setup',{password:'a-long-demo-password',email:'owner@example.com'});assert.equal(setup.status,200);const cookie=setup.headers.get('set-cookie').split(';')[0];assert.equal((await get('/api/status')).status,200);
+assert.equal((await fetch(base+'/api/admin/products',{headers:{Cookie:cookie}})).status,200);assert.equal((await post('/api/setup',{password:'another-long-password',email:'x@example.com'})).status,409);
+assert.equal((await post('/api/admin/categories',{name:'Test category'},cookie)).status,200);assert.equal((await post('/api/admin/categories',{name:'Bad origin'},cookie,'https://evil.example')).status,403);
+assert.equal((await post('/api/admin/upload',{data:'data:image/svg+xml;base64,PHN2Zz4='},cookie)).status,400);
+assert.equal((await post('/api/logout',{},cookie)).status,200);assert.equal((await fetch(base+'/api/admin/products',{headers:{Cookie:cookie}})).status,401);
+assert.equal((await post('/api/login',{email:'owner@example.com',password:'incorrect-password'})).status,401);
+});

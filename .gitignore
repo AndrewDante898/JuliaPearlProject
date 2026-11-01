@@ -1,0 +1,11 @@
+data/
+public/uploads/
+*.log
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-*
+*.db
+node_modules/
+backups/
